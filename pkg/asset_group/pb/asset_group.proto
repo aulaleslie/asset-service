@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package asset_group;
+
+option go_package = "./pkg/asset_group/pb";
+
+service AssetGroupService {
+  rpc Create(CreateUpdateRequest) returns (CUDResponse);
+  rpc Update(CreateUpdateRequest) returns (CUDResponse);
+  rpc Delete(DeleteRequest) returns (CUDResponse);
+  rpc Read(ReadRequest) returns (ReadResponse);
+}
+
+message CreateUpdateRequest {
+  int32 id = 1;
+  string agr_group_name = 2;
+  repeated string agr_business_group = 3;
+  repeated string subGroup = 4;
+}
+
+message CUDResponse {
+  bool status = 1;
+  Data data = 2;
+}
+
+message Data {
+  string name = 1;
+  string message = 2;
+  int32 code = 3;
+  repeated string bgp_name = 4;
+}
+
+message DeleteRequest {
+    int32 id = 1;
+}
+
+message ReadRequest {
+  repeated string expand = 1;
+  int32 per_page = 2;
+  string search = 3;
+  string sort = 4;
+  int32 page = 5;
+}
+
+message ReadResponse {
+  bool success = 1;
+  ReadResponseData data = 2;
+}
+
+message ReadResponseData {
+  repeated AssetGroup items = 1;
+  Links _links = 2;
+  Meta _meta = 3;
+}
+
+message Links {
+  Link self = 1;
+  Link first = 2;
+  Link last = 3;
+  Link next = 4;
+}
+
+message Link {
+  string href = 1;
+}
+
+message Meta {
+  int32 totalCount = 1;
+  int32 pageCount = 2;
+  int32 currentPage = 3;
+  int32 perPage = 4;
+}
+
+message AssetGroup {
+  string agr_id = 1;
+  string agr_group_name = 2;
+  string agr_business_group = 3;
+  string agr_organization = 4;
+  repeated BusinessGroup businessGroups = 5;
+  repeated SubGroupName subGroupsNames = 6;
+  repeated AssetType assetTypes = 7;
+  repeated Value values = 8;
+}
+
+message BusinessGroup {
+  string bgp_id = 1;
+  string bgp_label = 2;
+  string bgp_name = 3;
+  string bgp_organization = 4;
+}
+
+message SubGroupName {
+  string asg_id = 1;
+  string asg_name = 2;
+}
+
+message AssetType {
+  string aty_name = 1;
+}
+
+message Value {
+  string ast_id = 1;
+  string ast_name = 2;
+  string ast_hostname = 3;
+  string ast_ip_address = 4;
+}

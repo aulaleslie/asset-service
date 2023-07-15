@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package asset_sub_group;
+
+option go_package = "./pkg/asset_sub_group/pb";
+
+service AssetSubGroupService {
+  rpc Create(CreateUpdateRequest) returns (CUDResponse);
+  rpc Update(CreateUpdateRequest) returns (CUDResponse);
+  rpc Delete(DeleteRequest) returns (CUDResponse);
+  rpc Read(ReadRequest) returns (ReadResponse);
+}
+
+message CreateUpdateRequest {
+  int32 id = 1;
+  string asg_name = 2;
+  repeated string asg_parent_group = 3;
+}
+
+message CUDResponse {
+  bool status = 1;
+  Data data = 2;
+}
+
+message Data {
+  string name = 1;
+  string message = 2;
+  int32 code = 3;
+  repeated string bgp_name = 4;
+}
+
+message DeleteRequest {
+    int32 id = 1;
+}
+
+message ReadRequest {
+  repeated string expand = 1;
+  int32 per_page = 2;
+  string search = 3;
+  string sort = 4;
+  int32 page = 5;
+}
+
+message ReadResponse {
+  bool success = 1;
+  ReadResponseData data = 2;
+}
+
+message ReadResponseData {
+  repeated AssetSubGroup items = 1;
+  Links _links = 2;
+  Meta _meta = 3;
+}
+
+message Links {
+  Link self = 1;
+  Link first = 2;
+  Link last = 3;
+  Link next = 4;
+}
+
+message Link {
+  string href = 1;
+}
+
+message Meta {
+  int32 totalCount = 1;
+  int32 pageCount = 2;
+  int32 currentPage = 3;
+  int32 perPage = 4;
+}
+
+message AssetSubGroup {
+  int32 asg_id = 1;
+  string asg_name = 2;
+  string asg_parent_group = 3;
+  int32 asg_organization = 4;
+  map<string, string> assetGroups = 5;
+}
