@@ -2,8 +2,9 @@ package asset_sub_group
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/aulaleslie/asset-service/pkg/asset_sub_group/pb"
 	"github.com/aulaleslie/asset-service/pkg/db"
@@ -15,7 +16,7 @@ type Server struct {
 	H db.Handler
 }
 
-func (s *Server) Create(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
+func (s *Server) Create(_ context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
 	var assetSubGroup models.AssetSubGroup
 
 	if in.AsgName == "" {
@@ -29,15 +30,11 @@ func (s *Server) Create(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CU
 
 	}
 
-	asgParentGroup, err := json.Marshal(in.AsgParentGroup)
-	if err != nil {
-		return nil, err
-	}
-
-	assetSubGroup.AsgParentGroup = string(asgParentGroup)
+	asgParentGroup := strings.Join(in.AsgParentGroup, ",")
+	assetSubGroup.AsgParentGroup = asgParentGroup
 	assetSubGroup.AsgName = in.AsgName
 
-	if err = s.H.DB.Create(&assetSubGroup).Error; err != nil {
+	if err := s.H.DB.Create(&assetSubGroup).Error; err != nil {
 		return &pb.CUDResponse{
 			Status: false,
 			Data:   &pb.Data{Code: http.StatusInternalServerError, Message: err.Error()},
@@ -53,7 +50,7 @@ func (s *Server) Create(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CU
 	}, nil
 }
 
-func (s *Server) Update(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
+func (s *Server) Update(_ context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
 	var assetSubGroup models.AssetSubGroup
 
 	if result := s.H.DB.First(&assetSubGroup, in.Id); result.Error != nil {
@@ -66,6 +63,7 @@ func (s *Server) Update(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CU
 			},
 		}, nil
 	}
+
 	if in.AsgName == "" {
 		return &pb.CUDResponse{
 			Status: false,
@@ -76,11 +74,8 @@ func (s *Server) Update(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CU
 		}, nil
 	}
 
-	asgParentGroup, err := json.Marshal(in.AsgParentGroup)
-	if err != nil {
-		return nil, err
-	}
-	assetSubGroup.AsgParentGroup = string(asgParentGroup)
+	asgParentGroup := strings.Join(in.AsgParentGroup, ",")
+	assetSubGroup.AsgParentGroup = asgParentGroup
 	assetSubGroup.AsgName = in.AsgName
 
 	if result := s.H.DB.Save(&assetSubGroup); result.Error != nil {
@@ -102,7 +97,7 @@ func (s *Server) Update(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CU
 	}, nil
 }
 
-func (s *Server) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.CUDResponse, error) {
+func (s *Server) Delete(_ context.Context, in *pb.DeleteRequest) (*pb.CUDResponse, error) {
 	var assetSubGroup models.AssetSubGroup
 
 	if result := s.H.DB.Find(&assetSubGroup, in.Id); result.Error != nil {
@@ -135,12 +130,9 @@ func (s *Server) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.CUDRespo
 	}, nil
 }
 
-func (s *Server) Read(ctx context.Context, in *pb.ReadRequest) (*pb.ReadResponse, error) {
-	// TODO create query. need information about AssetsGroup map query.
-	// Prepare a variable to store the results
-	var assetSubGroups []*pb.AssetSubGroup
+func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, error) {
+	var assetSubGroups []*models.AssetSubGroup
 
-	// Build the query based on the request parameters
 	query := s.H.DB
 
 	// Pagination
@@ -160,26 +152,43 @@ func (s *Server) Read(ctx context.Context, in *pb.ReadRequest) (*pb.ReadResponse
 	}
 
 	// Retrieve the asset subgroups from the database
-	results := query.Find(&assetSubGroups)
-
-	if results.Error != nil {
+	err := query.Find(&assetSubGroups).Error
+	if err != nil {
 		// Return an error response if there was an issue with the query
-		return nil, results.Error
+		return nil, err
 	}
 
-	// Expand fields if requested
-	// if len(in.Expand) > 0 {
+	var items []*pb.AssetSubGroup
+	for _, result := range assetSubGroups {
+		var assetGroups []*models.AssetsGroup
 
-	// }
+		assetGroupIds := strings.Split(result.AsgParentGroup, ",")
+		err := s.H.DB.Where("agr_id IN (?)", assetGroupIds).Find(&assetGroups).Error
+		if err != nil {
 
-	// Prepare the response
-	response := &pb.ReadResponse{
+		}
+
+		var assetGroupResponses map[string]string
+		for _, assetGroup := range assetGroups {
+			assetGroupResponses[fmt.Sprint(assetGroup.AgrID)] = assetGroup.AgrGroupName
+		}
+
+		item := &pb.AssetSubGroup{
+			AsgId:           int32(result.AsgID),
+			AsgName:         result.AsgName,
+			AsgParentGroup:  fmt.Sprint(result.AsgParentGroup),
+			AsgOrganization: int32(result.AsgOrganization),
+			AssetGroups:     assetGroupResponses,
+		}
+		items = append(items, item)
+	}
+
+	return &pb.ReadResponse{
 		Success: true,
 		Data: &pb.ReadResponseData{
-			Items: assetSubGroups,
+			Items:  items,
+			XLinks: nil,
+			XMeta:  nil,
 		},
-	}
-
-	return response, nil
-	//return &pb.ReadResponse{}, nil
+	}, nil
 }

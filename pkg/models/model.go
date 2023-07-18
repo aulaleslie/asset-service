@@ -14,6 +14,13 @@ type AssetSubGroup struct {
 	AsgOrganization int    `json:"asg_organization"`
 }
 
+type BusinessGroup struct {
+	BgpID           int    `json:"bgp_id" gorm:"primaryKey"`
+	BgpLabel        string `json:"bgp_label"`
+	BgpName         string `json:"bgp_name" gorm:"not null"`
+	BgpOrganization int    `json:"bgp_organization" gorm:"not null"`
+}
+
 type User struct {
 	UsrID              int    `json:"usr_id" gorm:"primaryKey"`
 	UsrName            string `json:"usr_name"`
