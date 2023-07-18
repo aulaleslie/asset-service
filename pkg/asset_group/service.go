@@ -61,9 +61,9 @@ func (s *Server) Create(_ context.Context, in *pb.CreateUpdateRequest) (*pb.CUDR
 			var asgParentGroups []string
 			if subGroup.AsgParentGroup != "" {
 				asgParentGroups = strings.Split(subGroup.AsgParentGroup, ",")
-				asgParentGroups = append(asgParentGroups, subGroupId)
+				asgParentGroups = append(asgParentGroups, fmt.Sprint(assetsGroup.AgrID))
 			} else {
-				asgParentGroups = append(asgParentGroups, subGroupId)
+				asgParentGroups = append(asgParentGroups, fmt.Sprint(assetsGroup.AgrID))
 			}
 
 			subGroup.AsgParentGroup = strings.Join(asgParentGroups, ",")
@@ -145,9 +145,9 @@ func (s *Server) Update(_ context.Context, in *pb.CreateUpdateRequest) (*pb.CUDR
 			var asgParentGroups []string
 			if subGroup.AsgParentGroup != "" {
 				asgParentGroups = strings.Split(subGroup.AsgParentGroup, ",")
-				asgParentGroups = append(asgParentGroups, subGroupId)
+				asgParentGroups = append(asgParentGroups, fmt.Sprint(assetGroup.AgrID))
 			} else {
-				asgParentGroups = append(asgParentGroups, subGroupId)
+				asgParentGroups = append(asgParentGroups, fmt.Sprint(assetGroup.AgrID))
 			}
 
 			subGroup.AsgParentGroup = strings.Join(asgParentGroups, ",")

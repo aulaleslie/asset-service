@@ -33,3 +33,7 @@ type User struct {
 	UsrJWTAccessToken  string `json:"usr_jwt_access_token"`
 	UsrAPIOrganization int    `json:"usr_api_organization"`
 }
+
+func (AssetsGroup) TableName() string {
+	return "assets_group"
+}
