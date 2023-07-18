@@ -135,6 +135,13 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 
 	query := s.H.DB
 
+	var total int64
+	err := query.Find(&assetSubGroups).Count(&total).Error
+	if err != nil {
+		// Return an error response if there was an issue with the query
+		return nil, err
+	}
+
 	// Pagination
 	if in.PerPage > 0 && in.Page > 0 {
 		offset := (in.Page - 1) * in.PerPage
@@ -146,13 +153,15 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 		query = query.Order(in.Sort)
 	}
 
-	// Search
-	if in.Search != "" {
-		query = query.Where("asg_name LIKE ?", "%"+in.Search+"%")
+	// Retrieve the asset subgroups from the database
+	err = query.Find(&assetSubGroups).Error
+	if err != nil {
+		// Return an error response if there was an issue with the query
+		return nil, err
 	}
 
-	// Retrieve the asset subgroups from the database
-	err := query.Find(&assetSubGroups).Error
+	var pageCount int64
+	err = query.Find(&assetSubGroups).Count(&pageCount).Error
 	if err != nil {
 		// Return an error response if there was an issue with the query
 		return nil, err
@@ -162,15 +171,21 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 	for _, result := range assetSubGroups {
 		var assetGroups []*models.AssetsGroup
 
-		assetGroupIds := strings.Split(result.AsgParentGroup, ",")
-		err := s.H.DB.Where("agr_id IN (?)", assetGroupIds).Find(&assetGroups).Error
-		if err != nil {
+		var assetGroupResponses map[string]string = make(map[string]string)
+		if len(in.Expand) > 0 {
+			for _, expandField := range in.Expand {
+				if expandField == "assetGroups" {
+					assetGroupIds := strings.Split(result.AsgParentGroup, ",")
+					err := s.H.DB.Where("agr_id IN (?)", assetGroupIds).Find(&assetGroups).Error
+					if err != nil {
+						continue
+					}
 
-		}
-
-		var assetGroupResponses map[string]string
-		for _, assetGroup := range assetGroups {
-			assetGroupResponses[fmt.Sprint(assetGroup.AgrID)] = assetGroup.AgrGroupName
+					for _, assetGroup := range assetGroups {
+						assetGroupResponses[fmt.Sprint(assetGroup.AgrID)] = assetGroup.AgrGroupName
+					}
+				}
+			}
 		}
 
 		item := &pb.AssetSubGroup{
@@ -188,7 +203,12 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 		Data: &pb.ReadResponseData{
 			Items:  items,
 			XLinks: nil,
-			XMeta:  nil,
+			XMeta: &pb.Meta{
+				TotalCount:  int32(total),
+				PageCount:   int32(pageCount),
+				CurrentPage: in.Page,
+				PerPage:     in.PerPage,
+			},
 		},
 	}, nil
 }

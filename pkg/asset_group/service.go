@@ -211,6 +211,18 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 
 	query := s.H.DB
 
+	// Search
+	if in.Search != "" {
+		query = query.Where("agr_group_name LIKE ?", "%"+in.Search+"%")
+	}
+
+	var total int64
+	err := query.Find(&assetGroups).Count(&total).Error
+	if err != nil {
+		// Return an error response if there was an issue with the query
+		return nil, err
+	}
+
 	// Pagination
 	if in.PerPage > 0 && in.Page > 0 {
 		offset := (in.Page - 1) * in.PerPage
@@ -222,13 +234,15 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 		query = query.Order(in.Sort)
 	}
 
-	// Search
-	if in.Search != "" {
-		query = query.Where("agr_group_name LIKE ?", "%"+in.Search+"%")
+	// Retrieve the asset subgroups from the database
+	err = query.Find(&assetGroups).Error
+	if err != nil {
+		// Return an error response if there was an issue with the query
+		return nil, err
 	}
 
-	// Retrieve the asset subgroups from the database
-	err := query.Find(&assetGroups).Error
+	var pageCount int64
+	err = query.Find(&assetGroups).Count(&pageCount).Error
 	if err != nil {
 		// Return an error response if there was an issue with the query
 		return nil, err
@@ -239,15 +253,23 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 		var businessGroups []*models.BusinessGroup
 		var subGroups []*models.AssetSubGroup
 
-		businessGroupIds := strings.Split(result.AgrBusinessGroup, ",")
-		err := s.H.DB.Where("bgp_id IN (?)", businessGroupIds).Find(&businessGroups).Error
-		if err != nil {
+		if len(in.Expand) > 0 {
+			for _, expandField := range in.Expand {
+				if expandField == "businessGroups" {
+					businessGroupIds := strings.Split(result.AgrBusinessGroup, ",")
+					err := s.H.DB.Where("bgp_id IN (?)", businessGroupIds).Find(&businessGroups).Error
+					if err != nil {
+						continue
+					}
+				}
 
-		}
-
-		err = s.H.DB.Where("asg_parent_group LIKE ?", "%"+fmt.Sprint(result.AgrID)+",%").Find(&subGroups).Error
-		if err != nil {
-
+				if expandField == "subGroupsNames" {
+					err = s.H.DB.Where("asg_parent_group LIKE ?", "%"+fmt.Sprint(result.AgrID)+",%").Find(&subGroups).Error
+					if err != nil {
+						continue
+					}
+				}
+			}
 		}
 
 		var businessGroupResponses []*pb.BusinessGroup
@@ -286,7 +308,12 @@ func (s *Server) Read(_ context.Context, in *pb.ReadRequest) (*pb.ReadResponse, 
 		Data: &pb.ReadResponseData{
 			Items:  items,
 			XLinks: nil,
-			XMeta:  nil,
+			XMeta: &pb.Meta{
+				TotalCount:  int32(total),
+				PageCount:   int32(pageCount),
+				CurrentPage: in.Page,
+				PerPage:     in.PerPage,
+			},
 		},
 	}, nil
 }
