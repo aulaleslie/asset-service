@@ -18,21 +18,21 @@ type Server struct {
 func (s *Server) Create(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
 	var assetsGroup models.AssetsGroup
 
-	agrBusinessGroup, err := json.Marshal(in.AgrBusinessGroup)
-	if err != nil {
-		return nil, err
-	}
-	assetsGroup.AgrBusinessGroup = string(agrBusinessGroup)
-
 	if in.AgrGroupName == "" {
 		return &pb.CUDResponse{
 			Status: false,
 			Data: &pb.Data{
 				Code:    422,
-				Message: "Group Name is required",
+				BgpName: []string{"Name cannot be blank"},
 			},
 		}, nil
 	}
+
+	agrBusinessGroup, err := json.Marshal(in.AgrBusinessGroup)
+	if err != nil {
+		return nil, err
+	}
+	assetsGroup.AgrBusinessGroup = string(agrBusinessGroup)
 	assetsGroup.AgrGroupName = in.AgrGroupName
 
 	if err = s.H.DB.Create(&assetsGroup).Error; err != nil {
@@ -48,37 +48,58 @@ func (s *Server) Create(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CU
 	return &pb.CUDResponse{
 		Status: true,
 		Data: &pb.Data{
-			Code: http.StatusCreated,
+			Code:    http.StatusCreated,
+			Message: "Asset Group Created successfully",
 		},
 	}, nil
 }
 
 func (s *Server) Update(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
-	var assetsGroup models.AssetsGroup
+	var assetGroup models.AssetsGroup
 
+	if result := s.H.DB.First(&assetGroup, in.Id); result.Error != nil {
+		return &pb.CUDResponse{
+			Status: false,
+			Data: &pb.Data{
+				Name:    "Not Found",
+				Message: "Page not found",
+				Code:    404,
+			},
+		}, nil
+	}
+
+	if in.AgrGroupName == "" {
+		return &pb.CUDResponse{
+			Status: false,
+			Data: &pb.Data{
+				BgpName: []string{"Name cannot be blank."},
+				Code:    422,
+			},
+		}, nil
+	}
 	agrBusinessGroup, err := json.Marshal(in.AgrBusinessGroup)
 	if err != nil {
 		return nil, err
 	}
-	assetsGroup.AgrBusinessGroup = string(agrBusinessGroup)
+	assetGroup.AgrBusinessGroup = string(agrBusinessGroup)
+	assetGroup.AgrGroupName = in.AgrGroupName
 
-	if in.AgrGroupName == "" {
-		return &pb.CUDResponse{}, nil
-	}
-
-	assetsGroup.AgrGroupName = in.AgrGroupName
-
-	if res := s.H.DB.Save(&assetsGroup); res.Error != nil {
+	if result := s.H.DB.Save(&assetGroup); result.Error != nil {
 		return &pb.CUDResponse{
 			Status: false,
 			Data: &pb.Data{
-				Code: http.StatusConflict,
+				Message: result.Error.Error(),
+				Code:    500,
 			},
 		}, nil
 	}
 
 	return &pb.CUDResponse{
 		Status: true,
+		Data: &pb.Data{
+			Message: "Asset group updated",
+			Code:    200,
+		},
 	}, nil
 }
 
@@ -100,9 +121,8 @@ func (s *Server) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.CUDRespo
 		return &pb.CUDResponse{
 			Status: false,
 			Data: &pb.Data{
-				Name:    "Unauthorized",
-				Message: "Your request was made with invalid credentials.",
-				Code:    401,
+				Message: result.Error.Error(),
+				Code:    http.StatusInternalServerError,
 			},
 		}, nil
 	}
@@ -110,8 +130,8 @@ func (s *Server) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.CUDRespo
 	return &pb.CUDResponse{
 		Status: true,
 		Data: &pb.Data{
-			Code:    200,
 			Message: "Group Successfully Deleted",
+			Code:    200,
 		},
 	}, nil
 }

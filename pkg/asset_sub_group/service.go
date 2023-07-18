@@ -18,53 +18,87 @@ type Server struct {
 func (s *Server) Create(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
 	var assetSubGroup models.AssetSubGroup
 
+	if in.AsgName == "" {
+		return &pb.CUDResponse{
+			Status: false,
+			Data: &pb.Data{
+				Code:    422,
+				BgpName: []string{"Name cannot be blank"},
+			},
+		}, nil
+
+	}
+
 	asgParentGroup, err := json.Marshal(in.AsgParentGroup)
 	if err != nil {
 		return nil, err
 	}
 
 	assetSubGroup.AsgParentGroup = string(asgParentGroup)
-
-	if in.AsgName == "" {
-		return &pb.CUDResponse{
-			Status: false,
-			Data:   &pb.Data{Code: 422, Message: "Group Name is required"},
-		}, nil
-
-	}
 	assetSubGroup.AsgName = in.AsgName
 
-	if result := s.H.DB.Create(&assetSubGroup); result.Error != nil {
+	if err = s.H.DB.Create(&assetSubGroup).Error; err != nil {
 		return &pb.CUDResponse{
 			Status: false,
-			Data:   &pb.Data{Code: http.StatusInternalServerError, Message: result.Error.Error()},
+			Data:   &pb.Data{Code: http.StatusInternalServerError, Message: err.Error()},
 		}, nil
 	}
-	return &pb.CUDResponse{}, nil
+
+	return &pb.CUDResponse{
+		Status: true,
+		Data: &pb.Data{
+			Code:    200,
+			Message: "Asset SubGroup created",
+		},
+	}, nil
 }
 
 func (s *Server) Update(ctx context.Context, in *pb.CreateUpdateRequest) (*pb.CUDResponse, error) {
 	var assetSubGroup models.AssetSubGroup
 
-	asgParentGroup, err := json.Marshal(&assetSubGroup)
+	if result := s.H.DB.First(&assetSubGroup, in.Id); result.Error != nil {
+		return &pb.CUDResponse{
+			Status: false,
+			Data: &pb.Data{
+				Name:    "Not Found",
+				Message: "Page not found",
+				Code:    404,
+			},
+		}, nil
+	}
+	if in.AsgName == "" {
+		return &pb.CUDResponse{
+			Status: false,
+			Data: &pb.Data{
+				BgpName: []string{"Name cannot be blank."},
+				Code:    422,
+			},
+		}, nil
+	}
+
+	asgParentGroup, err := json.Marshal(in.AsgParentGroup)
 	if err != nil {
 		return nil, err
 	}
 	assetSubGroup.AsgParentGroup = string(asgParentGroup)
+	assetSubGroup.AsgName = in.AsgName
 
-	if result := s.H.DB.Find(&assetSubGroup, in.Id); result.Error != nil {
+	if result := s.H.DB.Save(&assetSubGroup); result.Error != nil {
 		return &pb.CUDResponse{
 			Status: false,
-			Data:   &pb.Data{Code: http.StatusNotFound, Message: "id not found"},
+			Data: &pb.Data{
+				Message: result.Error.Error(),
+				Code:    http.StatusInternalServerError,
+			},
 		}, nil
 	}
 
-	assetSubGroup.AsgName = in.AsgName
-	assetSubGroup.AsgParentGroup = string(asgParentGroup)
-
 	return &pb.CUDResponse{
-		Status: false,
-		Data:   &pb.Data{Code: http.StatusOK, Message: "Update success"},
+		Status: true,
+		Data: &pb.Data{
+			Message: "Asset SubGroup updated",
+			Code:    200,
+		},
 	}, nil
 }
 
@@ -86,9 +120,8 @@ func (s *Server) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.CUDRespo
 		return &pb.CUDResponse{
 			Status: false,
 			Data: &pb.Data{
-				Name:    "Unauthorized",
-				Message: "Your request was made with invalid credentials.",
-				Code:    401,
+				Message: result.Error.Error(),
+				Code:    http.StatusInternalServerError,
 			},
 		}, nil
 	}
@@ -104,5 +137,49 @@ func (s *Server) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.CUDRespo
 
 func (s *Server) Read(ctx context.Context, in *pb.ReadRequest) (*pb.ReadResponse, error) {
 	// TODO create query. need information about AssetsGroup map query.
-	return &pb.ReadResponse{}, nil
+	// Prepare a variable to store the results
+	var assetSubGroups []*pb.AssetSubGroup
+
+	// Build the query based on the request parameters
+	query := s.H.DB
+
+	// Pagination
+	if in.PerPage > 0 && in.Page > 0 {
+		offset := (in.Page - 1) * in.PerPage
+		query = query.Offset(int(offset)).Limit(int(in.PerPage))
+	}
+
+	// Sorting
+	if in.Sort != "" {
+		query = query.Order(in.Sort)
+	}
+
+	// Search
+	if in.Search != "" {
+		query = query.Where("asg_name LIKE ?", "%"+in.Search+"%")
+	}
+
+	// Retrieve the asset subgroups from the database
+	results := query.Find(&assetSubGroups)
+
+	if results.Error != nil {
+		// Return an error response if there was an issue with the query
+		return nil, results.Error
+	}
+
+	// Expand fields if requested
+	// if len(in.Expand) > 0 {
+
+	// }
+
+	// Prepare the response
+	response := &pb.ReadResponse{
+		Success: true,
+		Data: &pb.ReadResponseData{
+			Items: assetSubGroups,
+		},
+	}
+
+	return response, nil
+	//return &pb.ReadResponse{}, nil
 }
